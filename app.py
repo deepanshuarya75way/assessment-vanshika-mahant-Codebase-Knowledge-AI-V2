@@ -1,3 +1,4 @@
+
 import json
 import time
 from pathlib import Path
@@ -7,6 +8,8 @@ import streamlit as st
 
 from indexer import build_index
 from retriever import answer_question
+from bookmark_manager import save_bookmark, load_bookmarks
+
 
 st.set_page_config(
     page_title="Codebase Knowledge AI",
@@ -14,6 +17,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
 
 # ---------- Styles ----------
 st.markdown("""
@@ -102,24 +106,30 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # ---------- Session State ----------
 if "repo_id" not in st.session_state:
     st.session_state.repo_id = ""
+
 if "index_summary" not in st.session_state:
     st.session_state.index_summary = None
+
 if "last_answer" not in st.session_state:
     st.session_state.last_answer = None
+
 if "query_latency" not in st.session_state:
     st.session_state.query_latency = None
+
 
 # ---------- Cloud-friendly repo discovery ----------
 INDEX_META_DIR = Path("data") / "faiss"
 
 
 def list_available_repos() -> List[str]:
-    """Repos whose metadata JSONs exist (committed to GitHub)."""
+    """Repos whose metadata JSONs exist."""
     if not INDEX_META_DIR.exists():
         return []
+
     return [
         d.name for d in sorted(INDEX_META_DIR.iterdir())
         if d.is_dir() and (d / "build_summary.json").exists()
@@ -128,71 +138,147 @@ def list_available_repos() -> List[str]:
 
 def load_summary_from_disk(repo_id: str) -> Dict[str, Any]:
     p = INDEX_META_DIR / repo_id / "build_summary.json"
+
     if not p.exists():
         return {}
+
     with open(p, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
 # ---------- Header ----------
-st.markdown('<span class="app-title">⚡ Codebase Knowledge AI</span>', unsafe_allow_html=True)
+st.markdown(
+    '<span class="app-title">⚡ Codebase Knowledge AI</span>',
+    unsafe_allow_html=True,
+)
+
 st.markdown(
     '<span class="app-sub">Repository indexing · AST-aware retrieval · Cited code answers</span>',
     unsafe_allow_html=True,
 )
+
 
 # ---------- Sidebar ----------
 with st.sidebar:
     st.markdown("### ⚙️ Workspace")
     st.markdown("Use one repository at a time for best retrieval quality.")
     st.markdown("---")
+
     st.markdown("### Settings")
-    top_k = st.slider("Top-K retrieval", min_value=2, max_value=12, value=5)
+
+    top_k = st.slider(
+        "Top-K retrieval",
+        min_value=2,
+        max_value=12,
+        value=5,
+    )
+
     show_context = st.toggle("Show retrieved contexts", value=True)
+
     st.markdown("---")
     st.caption("Tip: Re-index after changing indexer/retriever logic.")
     st.markdown("---")
+
     if st.session_state.repo_id:
         st.success(f"Active: {st.session_state.repo_id}")
     else:
         st.warning("No repo indexed yet.")
 
+    # ---------- Snippet Notebook Drawer ----------
+    st.markdown("---")
+
+    with st.expander("📓 My Snippet Notebook", expanded=False):
+
+        bookmarks = load_bookmarks()
+
+        bookmarks = load_bookmarks()
+        if bookmarks:
+            st.caption(f"Total saved snippets: {len(bookmarks)}")
+            for i, bookmark in enumerate(bookmarks, start=1):
+
+                repo = bookmark.get("repo_id", "Unknown Repository")
+                source = bookmark.get("source", "Unknown File")
+                start = bookmark.get("start_line", "?")
+                end = bookmark.get("end_line", "?")
+                code = bookmark.get("code", "")
+
+                with st.container(border=True):
+
+                    st.markdown(f"**📄 {source}:{start}-{end}**")
+                    st.caption(f"Repository: {repo}")
+
+                    st.code(
+                        code,
+                        language="python"
+                    )
+
+        else:
+            st.info(
+                "No bookmarks saved yet. Bookmark a citation to see it here."
+            )
+
 # ---------- KPI Row ----------
 col1, col2, col3, col4 = st.columns(4)
+
 with col1:
-    value = st.session_state.repo_id if st.session_state.repo_id else "Not selected"
+    value = (
+        st.session_state.repo_id
+        if st.session_state.repo_id
+        else "Not selected"
+    )
+
     st.markdown(
         f'<div class="kpi"><div class="kpi-label">Active Repo ID</div>'
         f'<div class="kpi-value">{value}</div></div>',
         unsafe_allow_html=True,
     )
+
 with col2:
     files_loaded = "-"
+
     if st.session_state.index_summary:
-        files_loaded = st.session_state.index_summary.get("files_loaded", "-")
+        files_loaded = st.session_state.index_summary.get(
+            "files_loaded", "-"
+        )
+
     st.markdown(
         f'<div class="kpi"><div class="kpi-label">Indexed Files</div>'
         f'<div class="kpi-value">{files_loaded}</div></div>',
         unsafe_allow_html=True,
     )
+
 with col3:
     chunks = "-"
+
     if st.session_state.index_summary:
-        chunks = st.session_state.index_summary.get("chunks_indexed", "-")
+        chunks = st.session_state.index_summary.get(
+            "chunks_indexed", "-"
+        )
+
     st.markdown(
         f'<div class="kpi"><div class="kpi-label">Indexed Chunks</div>'
         f'<div class="kpi-value">{chunks}</div></div>',
         unsafe_allow_html=True,
     )
+
 with col4:
     latency = st.session_state.query_latency
-    latency_text = f"{latency:.2f}s" if isinstance(latency, (int, float)) else "-"
+
+    latency_text = (
+        f"{latency:.2f}s"
+        if isinstance(latency, (int, float))
+        else "-"
+    )
+
     st.markdown(
         f'<div class="kpi"><div class="kpi-label">Last Query Latency</div>'
         f'<div class="kpi-value">{latency_text}</div></div>',
         unsafe_allow_html=True,
     )
 
+
 st.markdown("<br/>", unsafe_allow_html=True)
+
 
 # ---------- Main Tabs ----------
 tab_index, tab_query, tab_sources = st.tabs([
@@ -201,43 +287,86 @@ tab_index, tab_query, tab_sources = st.tabs([
     "📊 Index Details",
 ])
 
-# ---- Tab 1: Index ----
+
+# ---------- Tab 1: Index ----------
 with tab_index:
-    st.markdown('<div class="section-title">Repository Indexing</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="section-title">Repository Indexing</div>',
+        unsafe_allow_html=True,
+    )
+
     st.markdown(
         '<span class="hint">Enter a local path or GitHub URL. '
         'Existing repo will be pulled if already cloned.</span>',
         unsafe_allow_html=True,
     )
-    st.caption("On the hosted demo, prefer the pre-indexed repos in the Ask Questions dropdown. Indexing here re-clones and re-uploads to Qdrant.")
+
+    st.caption(
+        "On the hosted demo, prefer the pre-indexed repos in the Ask "
+        "Questions dropdown. Indexing here re-clones and re-uploads to Qdrant."
+    )
 
     with st.form("index_form", clear_on_submit=False):
+
         repo_input = st.text_input(
             "Repository Path or URL",
             placeholder="https://github.com/user/repo.git  or  C:/projects/my-repo",
         )
-        submitted = st.form_submit_button("⚡ Build / Refresh Index", use_container_width=True)
+
+        submitted = st.form_submit_button(
+            "⚡ Build / Refresh Index",
+            use_container_width=True,
+        )
 
     if submitted:
+
         if not repo_input.strip():
             st.warning("Please provide a repository path or URL.")
+
         else:
-            with st.spinner("Indexing repository. This may take a while on CPU..."):
+            with st.spinner(
+                "Indexing repository. This may take a while on CPU..."
+            ):
                 try:
                     summary = build_index(repo_input.strip())
+
                     st.session_state.repo_id = summary.get("repo_id", "")
                     st.session_state.index_summary = summary
-                    st.success(f"Index completed. Repo ID: `{summary.get('repo_id')}`")
+
+                    st.success(
+                        f"Index completed. Repo ID: `{summary.get('repo_id')}`"
+                    )
+
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("Total Files", summary.get("total_files_in_repo", "-"))
-                    c2.metric("Indexed Files", summary.get("files_loaded", "-"))
-                    c3.metric("Chunks", summary.get("chunks_indexed", "-"))
+
+                    c1.metric(
+                        "Total Files",
+                        summary.get("total_files_in_repo", "-"),
+                    )
+
+                    c2.metric(
+                        "Indexed Files",
+                        summary.get("files_loaded", "-"),
+                    )
+
+                    c3.metric(
+                        "Chunks",
+                        summary.get("chunks_indexed", "-"),
+                    )
+
                 except Exception as e:
                     st.exception(e)
 
-# ---- Tab 2: Query ----
+
+# ---------- Tab 2: Query ----------
 with tab_query:
-    st.markdown('<div class="section-title">Codebase Q&A</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="section-title">Codebase Q&A</div>',
+        unsafe_allow_html=True,
+    )
+
     st.markdown(
         '<span class="hint">Ask architecture, flow, function, and module-level questions.</span>',
         unsafe_allow_html=True,
@@ -246,27 +375,47 @@ with tab_query:
     available_repos = list_available_repos()
 
     q_col1, q_col2 = st.columns([3, 1])
+
     with q_col1:
+
         if available_repos:
+
             default_idx = (
                 available_repos.index(st.session_state.repo_id)
-                if st.session_state.repo_id in available_repos else 0
+                if st.session_state.repo_id in available_repos
+                else 0
             )
-            repo_id = st.selectbox("Indexed Repository", available_repos, index=default_idx)
+
+            repo_id = st.selectbox(
+                "Indexed Repository",
+                available_repos,
+                index=default_idx,
+            )
+
         else:
+
             repo_id = st.text_input(
                 "Repo ID",
                 value=st.session_state.repo_id,
                 placeholder="example: fetal_prediction_app",
             )
-    with q_col2:
-        st.markdown("<br/>", unsafe_allow_html=True)
-        ask_btn = st.button("🔍 Run Query", use_container_width=True)
 
-    # Auto-load summary so KPIs + Details tab work without re-indexing
+    with q_col2:
+
+        st.markdown("<br/>", unsafe_allow_html=True)
+
+        ask_btn = st.button(
+            "🔍 Run Query",
+            use_container_width=True,
+        )
+
+    # Auto-load summary
     if repo_id and repo_id != st.session_state.repo_id:
+
         st.session_state.repo_id = repo_id
+
         disk_summary = load_summary_from_disk(repo_id)
+
         if disk_summary:
             st.session_state.index_summary = disk_summary
 
@@ -277,56 +426,123 @@ with tab_query:
     )
 
     if ask_btn:
+
         if not repo_id.strip():
             st.warning("Repo ID is required.")
+
         elif not question.strip():
             st.warning("Question is required.")
+
         else:
+
             start = time.time()
-            with st.spinner("Retrieving context and generating answer..."):
+
+            with st.spinner(
+                "Retrieving context and generating answer..."
+            ):
                 try:
+
                     result = answer_question(
                         repo_id=repo_id.strip(),
                         question=question.strip(),
                         top_k=top_k,
                     )
+
                     st.session_state.last_answer = result
                     st.session_state.query_latency = time.time() - start
+
                     st.rerun()
+
                 except Exception as e:
                     st.exception(e)
 
+    # ---------- Display Answer ----------
     if st.session_state.last_answer:
+
         result: Dict[str, Any] = st.session_state.last_answer
 
         # Answer
         st.markdown("#### 💡 Answer")
+
         st.markdown(
             f'<div class="answer-box">{result.get("answer", "No answer returned.")}</div>',
             unsafe_allow_html=True,
         )
 
-        # Citations
+        # ---------- Citations ----------
         st.markdown("#### 📎 Citations")
+
         citations: List[str] = result.get("citations", [])
+        contexts = result.get("contexts", [])
+
         if citations:
-            for c in citations:
-                st.markdown(f'<div class="citation">📄 {c}</div>', unsafe_allow_html=True)
+
+            for i, c in enumerate(citations):
+
+                st.markdown(
+                    f'<div class="citation">📄 {c}</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Match citation with its actual code context
+                matching_context = next(
+                    (
+                        item for item in contexts
+                        if (
+                            f'{item.get("source", "unknown")}:'
+                            f'{item.get("start_line", "?")}-'
+                            f'{item.get("end_line", "?")}'
+                        ) == c
+                    ),
+                    None,
+                )
+
+                # Bookmark only the clicked citation
+                if matching_context:
+
+                    if st.button(
+                        "🔖 Bookmark this citation",
+                        key=f"citation_bookmark_{i}",
+                    ):
+
+                        bookmark = {
+                            "repo_id": repo_id,
+                            "source": matching_context.get("source", "unknown"),
+                            "start_line": matching_context.get("start_line", "?"),
+                            "end_line": matching_context.get("end_line", "?"),
+                            "code": matching_context.get("text", ""),
+                        }
+
+                        save_bookmark(bookmark)
+
+                        st.success(
+                            f"{c} bookmarked successfully!"
+                        )
+
         else:
             st.info("No citations returned.")
 
-        # AST Hints
-        ast_hints: List[Dict[str, Any]] = result.get("ast_hints", [])
+        # ---------- AST Hints ----------
+        ast_hints: List[Dict[str, Any]] = result.get(
+            "ast_hints", []
+        )
+
         if ast_hints:
+
             st.markdown("#### 🧠 AST Symbol Hints")
+
             with st.expander("View AST Hints", expanded=True):
+
                 for h in ast_hints:
+
                     typ = h.get("type", "symbol")
                     name = h.get("name", "")
                     file_ = h.get("file", "unknown")
                     sl = h.get("start_line")
                     el = h.get("end_line")
+
                     if sl and el:
+
                         st.markdown(
                             f'<div class="ast-hint">'
                             f'<b>{typ}</b>: <code>{name}</code> → '
@@ -334,7 +550,9 @@ with tab_query:
                             f'</div>',
                             unsafe_allow_html=True,
                         )
+
                     else:
+
                         st.markdown(
                             f'<div class="ast-hint">'
                             f'<b>{typ}</b>: <code>{name}</code> → '
@@ -343,44 +561,82 @@ with tab_query:
                             unsafe_allow_html=True,
                         )
 
-        # Retrieved Contexts
+        # ---------- Retrieved Contexts ----------
         if show_context:
+
             st.markdown("#### 🔍 Retrieved Contexts")
-            contexts = result.get("contexts", [])
+
             if contexts:
+
                 for i, item in enumerate(contexts, start=1):
+
                     src = item.get("source", "unknown")
                     s = item.get("start_line", "?")
                     e = item.get("end_line", "?")
-                    score = item.get("score", None)
-                    score_text = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
-                    with st.expander(f"{i}. {src}:{s}-{e} | score: {score_text}"):
-                        st.code(item.get("text", ""), language="python")
+                    code_text = item.get("text", "")
+
+                    with st.expander(f"{i}. {src}:{s}-{e}"):
+
+                        st.code(
+                            code_text,
+                            language="python",
+                        )
+
             else:
                 st.info("No contexts returned.")
 
-# ---- Tab 3: Index Details ----
+
+# ---------- Tab 3: Index Details ----------
 with tab_sources:
-    st.markdown('<div class="section-title">Index Build Summary</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="section-title">Index Build Summary</div>',
+        unsafe_allow_html=True,
+    )
+
     if st.session_state.index_summary:
+
         summary = st.session_state.index_summary
 
         d1, d2, d3, d4 = st.columns(4)
-        d1.metric("Total Files", summary.get("total_files_in_repo", "-"))
-        d2.metric("Indexed Files", summary.get("files_loaded", "-"))
-        d3.metric("Chunks", summary.get("chunks_indexed", "-"))
-        d4.metric("AST Files Parsed", summary.get("ast_files_parsed", "-"))
+
+        d1.metric(
+            "Total Files",
+            summary.get("total_files_in_repo", "-"),
+        )
+
+        d2.metric(
+            "Indexed Files",
+            summary.get("files_loaded", "-"),
+        )
+
+        d3.metric(
+            "Chunks",
+            summary.get("chunks_indexed", "-"),
+        )
+
+        d4.metric(
+            "AST Files Parsed",
+            summary.get("ast_files_parsed", "-"),
+        )
 
         st.markdown("<br/>", unsafe_allow_html=True)
+
         st.json(summary)
 
         indexed_list = summary.get("indexed_files_list", [])
+
         if indexed_list:
+
             st.markdown("#### Indexed Files")
+
             st.dataframe(
                 {"file": indexed_list},
                 use_container_width=True,
                 hide_index=True,
             )
+
     else:
-        st.info("No index summary yet. Build index first from the Index Repository tab.")
+        st.info(
+            "No index summary yet. Build index first from the Index Repository tab."
+        )

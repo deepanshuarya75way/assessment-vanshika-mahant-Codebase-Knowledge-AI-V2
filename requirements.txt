@@ -29,3 +29,4 @@ numpy==1.26.4
 
 tree-sitter==0.21.3
 tree-sitter-languages==1.10.2
+pyarrow==17.0.0
