@@ -1,0 +1,64 @@
+[
+    {
+        "repo_id": "codebase-knowledge-ai",
+        "source": "README.md",
+        "start_line": 378,
+        "end_line": 391,
+        "code": "- 🔄 Incremental repository indexing\n- 🔍 Advanced AST and dependency analysis\n- 🕸️ Code call-graph visualization\n- 🌐 Federated multi-repository search\n- 💻 IDE integration\n- ⚡ FastAPI programmatic API\n- 🔐 Authentication and rate limiting\n- 🎯 Improved code-aware reranking\n\n---\n\n## 📄 License\n\nThis project is available under the **MIT License**."
+    },
+    {
+        "repo_id": "codebase-knowledge-ai",
+        "source": "README.md",
+        "start_line": 236,
+        "end_line": 250,
+        "code": "## 💬 Example Queries\n\n| Question | Retrieval Path | Sample Output |\n|---|---|---|\n| `How many files are indexed?` | Stats — No LLM | `\"8 files indexed into 196 chunks...\"` |\n| `List indexed files` | Stats — No LLM | List of indexed file paths |\n| `engine.py 1 40` | Line Range — No LLM | Raw code from `engine.py`, lines 1–40 |\n| `Where is the Value class defined?` | Hybrid + LLM | `Value` class location with file and line citations |\n| `What does backward() do?` | Hybrid + LLM | Explanation of topological sort and reverse chain rule |\n| `Which symbols relate to relu?` | Hybrid + LLM | Matching `relu` function and `Value.relu` method |\n| `How does auth flow work across these files?` | Hybrid + LLM | Cross-file explanation with multiple citations |\n\n## ⚙️ Installation & Setup\n\n### 1. Clone the Repository",
+        "note": "project imp",
+        "tags": [
+            "# overview"
+        ]
+    },
+    {
+        "repo_id": "codebase-knowledge-ai",
+        "source": "indexer.py",
+        "start_line": 1,
+        "end_line": 5,
+        "code": "def slugify_repo_id(value: str) -> str:\n    value = value.strip().rstrip(\"/\")\n    name = value.split(\"/\")[-1].replace(\".git\", \"\")\n    name = re.sub(r\"[^a-zA-Z0-9_-]+\", \"-\", name).strip(\"-\").lower()\n    return name or \"repo\"",
+        "note": "explain url ",
+        "tags": [
+            "# url short"
+        ]
+    },
+    {
+        "repo_id": "codebase-knowledge-ai",
+        "source": "app.py",
+        "start_line": 202,
+        "end_line": 207,
+        "code": "with st.form(\"index_form\", clear_on_submit=False):\n        repo_input = st.text_input(\n            \"Repository Path or URL\",\n            placeholder=\"https://github.com/user/repo.git  or  C:/projects/my-repo\",\n        )\n        submitted = st.form_submit_button(\"⚡ Build / Refresh Index\", use_container_width=True)",
+        "note": "form code explain",
+        "tags": [
+            "# app"
+        ]
+    },
+    {
+        "repo_id": "codebase-knowledge-ai",
+        "source": "README.md",
+        "start_line": 50,
+        "end_line": 90,
+        "code": "## 🏗️ Architecture & Workflow\n\nThe system works in two main phases: **Repository Indexing** and **Question Answering**.\n\n```mermaid\nflowchart TD\n\n    A[\"GitHub Repository / Local Path\"] --> B[\"Clone / Load Repository\"]\n    B --> C[\"Load and Filter Code Files\"]\n\n    C --> D[\"Language-Aware Code Chunking\"]\n    C --> E[\"AST Parsing\"]\n\n    D --> F[\"Generate Embeddings\"]\n    E --> G[\"Repository Symbol Map\"]\n\n    F --> H[(\"Qdrant Cloud\")]\n    G --> I[\"repo_map.json\"]\n    D --> J[\"build_summary.json\"]\n\n    K[\"User Question\"] --> L{\"Query Router\"}\n\n    L -->|Stats| J\n    L -->|Line Range| H\n    L -->|Semantic| M[\"MMR Semantic Search\"]\n    L -->|Symbol| N[\"AST Symbol Matching\"]\n\n    M --> H\n    N --> I\n\n    H --> O[\"Combine Context\"]\n    I --> O\n\n    O --> P[\"Groq LLM\"]\n    P --> Q[\"Answer and Citations\"]\n\n    J --> Q\n    Q --> R[\"Streamlit UI\"]\n```\n\n### 🔹 Phase 1 — Repository Indexing",
+        "note": "readme.md",
+        "tags": [
+            "#codebase"
+        ]
+    },
+    {
+        "repo_id": "codebase-knowledge-ai",
+        "source": "data/faiss/fetal_prediction_app/repo_map.json",
+        "start_line": 1,
+        "end_line": 24,
+        "code": "{\n  \"repo\": \"fetal_prediction_app\",\n  \"files\": [\n    {\n      \"file\": \"app.py\",\n      \"language\": \"python\",\n      \"imports\": [\n        \"joblib\",\n        \"numpy\",\n        \"pandas\",\n        \"streamlit\"\n      ],\n      \"functions\": [\n        {\n          \"name\": \"safe_float_input\",\n          \"start_line\": 13,\n          \"end_line\": 19\n        }\n      ],\n      \"classes\": []\n    }\n  ],\n  \"total_python_files\": 1\n}",
+        "note": "test 1",
+        "tags": [
+            "test 2"
+        ]
+    }
+]
