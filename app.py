@@ -8,8 +8,11 @@ import streamlit as st
 
 from indexer import build_index
 from retriever import answer_question
-from bookmark_manager import save_bookmark, load_bookmarks
-
+from bookmark_manager import (
+    save_bookmark,
+    load_bookmarks,
+    update_bookmark
+)
 
 st.set_page_config(
     page_title="Codebase Knowledge AI",
@@ -160,6 +163,7 @@ st.markdown(
 
 # ---------- Sidebar ----------
 with st.sidebar:
+
     st.markdown("### ⚙️ Workspace")
     st.markdown("Use one repository at a time for best retrieval quality.")
     st.markdown("---")
@@ -191,10 +195,11 @@ with st.sidebar:
 
         bookmarks = load_bookmarks()
 
-        bookmarks = load_bookmarks()
         if bookmarks:
+
             st.caption(f"Total saved snippets: {len(bookmarks)}")
-            for i, bookmark in enumerate(bookmarks, start=1):
+
+            for i, bookmark in enumerate(bookmarks):
 
                 repo = bookmark.get("repo_id", "Unknown Repository")
                 source = bookmark.get("source", "Unknown File")
@@ -212,15 +217,98 @@ with st.sidebar:
                         language="python"
                     )
 
+                    # ---------- Custom Note ----------
+                    note = st.text_area(
+                        "Add your note",
+                        value=bookmark.get("note", ""),
+                        key=f"bookmark_note_{i}"
+                    )
+
+                    # ---------- Custom Tags ----------
+                    existing_tags = bookmark.get("tags", [])
+
+                    if isinstance(existing_tags, list):
+                        existing_tags_text = ", ".join(existing_tags)
+                    else:
+                        existing_tags_text = str(existing_tags)
+
+                    tags_text = st.text_input(
+                        "Add tags (comma separated)",
+                        value=existing_tags_text,
+                        key=f"bookmark_tags_{i}",
+                        placeholder="Important, API, Database"
+                    )
+
+                    # ---------- Save Note and Tags ----------
+                    if st.button(
+                        "💾 Save Note & Tags",
+                        key=f"save_bookmark_{i}"
+                    ):
+
+                        tags = [
+                            tag.strip()
+                            for tag in tags_text.split(",")
+                            if tag.strip()
+                        ]
+
+                        update_bookmark(i, note, tags)
+
+                        st.success(
+                            "Note and tags saved successfully!"
+                        )
+
+            # ---------- Markdown Export ----------
+            markdown_content = "# My Code Snippet Notebook\n\n"
+
+            for index, bookmark in enumerate(bookmarks, start=1):
+
+                repo = bookmark.get("repo_id", "Unknown Repository")
+                source = bookmark.get("source", "Unknown File")
+                start = bookmark.get("start_line", "?")
+                end = bookmark.get("end_line", "?")
+                code = bookmark.get("code", "")
+                note = bookmark.get("note", "")
+                tags = bookmark.get("tags", [])
+
+                if isinstance(tags, str):
+                    tags = [
+                        tag.strip()
+                        for tag in tags.split(",")
+                        if tag.strip()
+                    ]
+
+                markdown_content += f"## {index}. {source}:{start}-{end}\n\n"
+                markdown_content += f"**Repository:** {repo}\n\n"
+
+                if tags:
+                    markdown_content += f"**Tags:** {', '.join(tags)}\n\n"
+
+                if note:
+                    markdown_content += f"**Note:** {note}\n\n"
+
+                markdown_content += f"```python\n{code}\n```\n\n"
+                markdown_content += "---\n\n"
+
+            st.download_button(
+                label="📥 Export Notebook as Markdown",
+                data=markdown_content,
+                file_name="my_code_snippet_notebook.md",
+                mime="text/markdown",
+                use_container_width=True
+            )
+
         else:
+
             st.info(
                 "No bookmarks saved yet. Bookmark a citation to see it here."
             )
+
 
 # ---------- KPI Row ----------
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
+
     value = (
         st.session_state.repo_id
         if st.session_state.repo_id
@@ -234,6 +322,7 @@ with col1:
     )
 
 with col2:
+
     files_loaded = "-"
 
     if st.session_state.index_summary:
@@ -248,6 +337,7 @@ with col2:
     )
 
 with col3:
+
     chunks = "-"
 
     if st.session_state.index_summary:
@@ -262,6 +352,7 @@ with col3:
     )
 
 with col4:
+
     latency = st.session_state.query_latency
 
     latency_text = (
@@ -325,10 +416,13 @@ with tab_index:
             st.warning("Please provide a repository path or URL.")
 
         else:
+
             with st.spinner(
                 "Indexing repository. This may take a while on CPU..."
             ):
+
                 try:
+
                     summary = build_index(repo_input.strip())
 
                     st.session_state.repo_id = summary.get("repo_id", "")
@@ -440,6 +534,7 @@ with tab_query:
             with st.spinner(
                 "Retrieving context and generating answer..."
             ):
+
                 try:
 
                     result = answer_question(
